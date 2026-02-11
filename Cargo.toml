@@ -4,5 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-pixels = "0.15.0"
-winit = "0.30.12"
+macroquad = "0.4.14"
+rand = "0.10.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1.20", features = ["v4", "serde"] }
+
