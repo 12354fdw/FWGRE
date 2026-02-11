@@ -2,37 +2,121 @@ use macroquad::prelude::*;
 use uuid::Uuid;
 
 use crate::entities::Tile;
+use crate::entities::Types;
+use crate::world::World;
 
 mod textures;
 
-const TILE_SIZE_X: i32 = 128;
-const TILE_SIZE_Y: i32 = 128;
-
+const LOD_THRESHOLD: f32 = 0.075;
 pub struct Graphics {
     pub cam: Camera2D,
     pub textures: textures::Textures,
 }
 
 impl Graphics {
-    pub fn draw_tile(&self, tile: &Tile) {
-        let count = self.textures.variant_count(&tile.id);
+    fn draw_tile(&self, tile: &Tile) {
+        let count = self.textures.variant_count(tile.id);
         let variant = (tile.uuid.as_u128() as usize) % count;
-        let text = self.textures.get_variant(&tile.id, variant);
+        let text = self.textures.get_variant(tile.id, variant);
 
         
         draw_texture_ex(text,
-            (tile.pos.x as f32) * TILE_SIZE_X as f32,
-            (tile.pos.y as f32) * TILE_SIZE_Y as f32,
+            tile.pos.x ,
+            tile.pos.y ,
             WHITE,
             DrawTextureParams {
                 dest_size: Some(vec2(
-                    (tile.size.x as f32) * TILE_SIZE_X as f32,
-                    (tile.size.y as f32) * TILE_SIZE_Y as f32,
+                    tile.size.x ,
+                    tile.size.y ,
                 )),
                 ..Default::default()
             }
         )
     }
+
+    fn draw_tile_lod(&self, tile: &Tile) {
+        let count = self.textures.variant_count(tile.id);
+        let variant = (tile.uuid.as_u128() as usize) % count;
+        let color = self.textures.get_lod_variant(tile.id, variant);
+
+
+        draw_rectangle(
+            tile.pos.x ,
+            tile.pos.y ,
+            tile.size.x ,
+            tile.size.y ,
+            color,
+        );
+    }
+
+    pub fn draw_world(&self, world: &World) {
+        set_camera(&self.cam);
+
+        let mut drawn: u32 = 0;
+
+        let (left, right, top, bottom) = self.visible_world_bounds();
+
+        let use_lod = self.cam.zoom.x < LOD_THRESHOLD;
+
+        for tile in &world.terrain {
+            if tile.id == Types::Water {
+                continue;
+            }
+
+            // Cull here
+ 
+            let tile_left   = tile.pos.x;
+            let tile_right  = tile_left + tile.size.x;
+            let tile_top    = tile.pos.y;
+            let tile_bottom = tile_top + tile.size.y;
+            
+            if tile_right < left ||
+            tile_left > right ||
+            tile_bottom < top ||
+            tile_top > bottom {
+                continue;
+            }
+
+            if use_lod {
+                self.draw_tile_lod(tile);
+            } else {
+                self.draw_tile(tile);
+            }
+
+            drawn += 1;
+        }
+
+        set_default_camera();
+
+        /*
+        draw_text(
+            *
+            &format!("FPS: {}", get_fps()),
+            20.0,
+            20.0,
+            30.0,
+            WHITE,
+        );*/
+
+        draw_text(&format!("fps: {}",get_fps()),20.0,20.0,30.0,WHITE);
+        draw_text(&format!("drawn: {}",drawn),20.0,45.0,30.0,WHITE);
+        draw_text(&format!("scale: {}",self.cam.zoom.x),20.0,70.0,30.0,WHITE);
+
+    }
+    fn visible_world_bounds(&self) -> (f32, f32, f32, f32) {
+        let top_left = self.cam.screen_to_world(vec2(0.0, 0.0));
+        let bottom_right = self.cam.screen_to_world(vec2(screen_width(), screen_height()));
+
+        let left = top_left.x;
+        let top = top_left.y;
+        let right = bottom_right.x;
+        let bottom = bottom_right.y;
+
+        (left, right, top, bottom)
+    }
+
+
+
 
     pub fn calculate_camera_movement(&mut self) {
         let speed = 1.5 * (1.0 / self.cam.zoom.x);
@@ -72,8 +156,8 @@ impl Graphics {
         Self {
             cam: Camera2D {
                 zoom: vec2(
-                    2.0 / screen_width(),
-                    2.0 / screen_height(),
+                    10.0,
+                    10.0,
                 ),
                 target: vec2(0.0, 0.0),
                 ..Default::default()

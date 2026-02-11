@@ -1,0 +1,23 @@
+{
+    "countries": {
+        "0": {
+            "name": "test-land",
+            "states": {
+                "0": {
+                    "name": "test-state-1",
+                    "towns": {
+                        "0": {
+                            "name": "test-town-1",
+                            "population": 1000,
+                            "money": 1000000,
+                            "manpower": 100
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "tiles": {
+        "0": "grass"
+    }
+}
