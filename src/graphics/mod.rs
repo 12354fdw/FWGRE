@@ -4,13 +4,22 @@ use uuid::Uuid;
 use crate::entities::Tile;
 use crate::entities::Types;
 use crate::world::World;
+use crate::graphics::chunks::ChunkTexture;
+use crate::world::CHUNK_SIZE;
 
 mod textures;
+mod chunks;
 
-const LOD_THRESHOLD: f32 = 0.075;
+const LOD_THRESHOLD: f32 = 0.05;
 pub struct Graphics {
     pub cam: Camera2D,
     pub textures: textures::Textures,
+
+    world_chunk_width: u32,
+    world_chunk_height: u32,
+
+    chunks: Vec<ChunkTexture>,
+
 }
 
 impl Graphics {
@@ -34,22 +43,46 @@ impl Graphics {
         )
     }
 
-    fn draw_tile_lod(&self, tile: &Tile) {
-        let count = self.textures.variant_count(tile.id);
-        let variant = (tile.uuid.as_u128() as usize) % count;
-        let color = self.textures.get_lod_variant(tile.id, variant);
+    fn draw_lod(&self, drawn: &mut u32) {
+        let (left, right, top, bottom) = self.visible_world_bounds();
 
+        for (i, chunk) in self.chunks.iter().enumerate() {
+            let (cx, cy) = self.chunk_coords(i);
 
-        draw_rectangle(
-            tile.pos.x ,
-            tile.pos.y ,
-            tile.size.x ,
-            tile.size.y ,
-            color,
-        );
+            let world_x = cx as f32 * CHUNK_SIZE as f32;
+            let world_y = cy as f32 * CHUNK_SIZE as f32;
+
+            let chunk_left   = world_x;
+            let chunk_right  = world_x + CHUNK_SIZE as f32;
+            let chunk_top    = world_y;
+            let chunk_bottom = world_y + CHUNK_SIZE as f32;
+
+            if chunk_right < left ||
+                chunk_left > right ||
+                chunk_bottom < top ||
+                chunk_top > bottom {
+                    continue;
+            }
+
+            draw_texture_ex(
+                &chunk.texture,
+                world_x,
+                world_y,
+                WHITE,
+                DrawTextureParams {
+                    dest_size: Some(vec2(
+                        CHUNK_SIZE as f32,
+                        CHUNK_SIZE as f32,
+                    )),
+                    ..Default::default()
+                },
+            );
+            *drawn += 1;
+        }
     }
 
-    pub fn draw_world(&self, world: &World) {
+
+    pub fn draw(&self, world: &World) {
         set_camera(&self.cam);
 
         let mut drawn: u32 = 0;
@@ -58,34 +91,33 @@ impl Graphics {
 
         let use_lod = self.cam.zoom.x < LOD_THRESHOLD;
 
-        for tile in &world.terrain {
-            if tile.id == Types::Water {
-                continue;
-            }
+        if use_lod {
+            self.draw_lod(&mut drawn);
+        } else {
+            for tile in &world.terrain {
+                if tile.id == Types::Water {
+                    continue;
+                }
 
-            // Cull here
- 
-            let tile_left   = tile.pos.x;
-            let tile_right  = tile_left + tile.size.x;
-            let tile_top    = tile.pos.y;
-            let tile_bottom = tile_top + tile.size.y;
-            
-            if tile_right < left ||
-            tile_left > right ||
-            tile_bottom < top ||
-            tile_top > bottom {
-                continue;
-            }
+                // Cull here
+    
+                let tile_left   = tile.pos.x;
+                let tile_right  = tile_left + tile.size.x;
+                let tile_top    = tile.pos.y;
+                let tile_bottom = tile_top + tile.size.y;
 
-            if use_lod {
-                self.draw_tile_lod(tile);
-            } else {
+                if tile_right < left ||
+                    tile_left > right ||
+                    tile_bottom < top ||
+                    tile_top > bottom {
+                        continue;
+                }
+
                 self.draw_tile(tile);
+
+                drawn += 1;
             }
-
-            drawn += 1;
         }
-
         set_default_camera();
 
         /*
@@ -152,7 +184,24 @@ impl Graphics {
 
     }
 
-    pub fn new() -> Self {
+    pub fn new(world: &mut World) -> Self {
+        let world_chunk_width = (world.width as f32 / CHUNK_SIZE as f32).ceil() as u32;
+        let world_chunk_height = (world.height as f32 / CHUNK_SIZE as f32).ceil() as u32;
+
+        let mut chunks = Vec::new();
+        for index in 0..(world_chunk_width * world_chunk_height) {
+            let image = Image::gen_image_color(
+                CHUNK_SIZE as u16,
+                CHUNK_SIZE as u16,
+                Color::from_rgba(0, 0, 0, 0),
+            );
+            let texture = Texture2D::from_image(&image);
+            texture.set_filter(FilterMode::Nearest);
+
+            chunks.push(ChunkTexture { texture, image });
+            world.dirty_chunks.push(index as usize);
+        }
+
         Self {
             cam: Camera2D {
                 zoom: vec2(
@@ -163,6 +212,9 @@ impl Graphics {
                 ..Default::default()
             },
             textures: textures::Textures::new(),
+            world_chunk_width,
+            world_chunk_height,
+            chunks
         }
     }
 }

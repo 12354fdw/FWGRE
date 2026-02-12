@@ -1,4 +1,5 @@
 use super::World;
+use super::CHUNK_SIZE;
 use tracing::info;
 use crate::entities::Tile;
 use crate::entities::Types;
@@ -38,6 +39,9 @@ impl World {
             width,
             height,
             terrain,
+            buildings: Vec::with_capacity((width * height) as usize),
+
+            dirty_chunks: Vec::with_capacity(((width / CHUNK_SIZE) * (height / CHUNK_SIZE)) as usize),
         }
     }
 }

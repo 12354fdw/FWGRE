@@ -12,10 +12,13 @@ mod world;
 async fn main() {
     logging::init();
 
-    let mut graphicsCtx: graphics::Graphics = graphics::Graphics::new();
-
     info!("Starting FWGRE...");
+    
+    let mut world = world::World::init();
 
+    info!("Starting Graphics...");
+    let mut graphicsCtx: graphics::Graphics = graphics::Graphics::new(&mut world);
+    
     info!("Loading textures...");
     graphicsCtx.textures.load(entities::Types::Grass,"assets/grass/1.png").await;
     graphicsCtx.textures.load(entities::Types::Grass,"assets/grass/2.png").await;
@@ -30,14 +33,13 @@ async fn main() {
 
     info!("Textures loaded!");
 
-    let world = world::World::init();
-
 
     loop {
         clear_background(BLUE);
 
+        graphicsCtx.rasterize_dirty_chunks(&mut world);
         graphicsCtx.calculate_camera_movement();
-        graphicsCtx.draw_world(&world);
+        graphicsCtx.draw(&world);
 
         // ui stuff
         /*
